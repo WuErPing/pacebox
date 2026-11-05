@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Pacebox",
+    "slug": "pacebox",
+    "version": "1.0.0",
+    "orientation": "default",
+    "scheme": "pacebox",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "dev.pacebox.app",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": ["expo-router", "expo-notifications"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
