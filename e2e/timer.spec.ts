@@ -1,13 +1,16 @@
 import { expect, test } from "@playwright/test";
 
+// 缺省用例固定英文环境；中文环境的语音提示另用 describe 覆盖
+test.use({ locale: "en-US" });
+
 test.beforeEach(async ({ page, context }) => {
   await context.grantPermissions(["notifications"]);
   // 默认隔离本机通知服务，保证断言走浏览器回退路径；服务端优先链路由单独用例覆盖
   await page.route("http://127.0.0.1:39527/**", (route) => route.abort());
   await page.addInitScript(() => {
-    // 记录通知与铃声调用，供断言
+    // 记录通知与语音调用，供断言
     (window as any).__notifications = [];
-    (window as any).__plays = 0;
+    (window as any).__spoken = [];
     const OriginalNotification = window.Notification;
     (window as any).Notification = class extends OriginalNotification {
       constructor(title: string, options?: NotificationOptions) {
@@ -21,11 +24,47 @@ test.beforeEach(async ({ page, context }) => {
         return "granted" as const;
       }
     };
-    const originalPlay = HTMLMediaElement.prototype.play;
-    HTMLMediaElement.prototype.play = function play() {
-      (window as any).__plays += 1;
-      return originalPlay.call(this);
-    };
+
+    class FakeSpeechSynthesisUtterance {
+      text = "";
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      volume = 1;
+      voice = null;
+      onstart = null;
+      onend = null;
+      onerror = null;
+      onpause = null;
+      onresume = null;
+      onmark = null;
+      onboundary = null;
+      constructor(text?: string) {
+        if (text) this.text = text;
+      }
+    }
+    (window as any).SpeechSynthesisUtterance = FakeSpeechSynthesisUtterance;
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: {
+        speak(utterance: { text: string; lang: string }) {
+          (window as any).__spoken.push({
+            text: utterance.text,
+            lang: utterance.lang,
+          });
+        },
+        cancel() {},
+        pause() {},
+        resume() {},
+        getVoices() {
+          return [];
+        },
+        speaking: false,
+        pending: false,
+        paused: false,
+        onvoiceschanged: null,
+      },
+    });
   });
 });
 
@@ -45,7 +84,7 @@ test("默认界面即有 25 分钟计时器，点开始立即计时", async ({ p
   await expect(page.getByText("已暂停")).toBeVisible();
 });
 
-test("到点触发响铃与系统通知", async ({ page }) => {
+test("到点触发语音提示与系统通知", async ({ page }) => {
   // 预置设置：1 分钟总时长，2% / 5% 提醒（约 1.2s / 3s）
   await page.addInitScript(() => {
     window.localStorage.setItem(
@@ -60,10 +99,17 @@ test("到点触发响铃与系统通知", async ({ page }) => {
     .poll(async () =>
       page.evaluate(() => (window as any).__notifications.map((n: any) => n.title)),
     )
-    .toEqual(["第一次提醒", "第二次提醒"]);
+    .toEqual(["First reminder", "Second reminder"]);
 
-  const plays = await page.evaluate(() => (window as any).__plays);
-  expect(plays).toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => (window as any).__spoken.map((s: any) => s.text)),
+    )
+    .toEqual(["First reminder", "Second reminder"]);
+  const languages = await page.evaluate(() => [
+    ...new Set((window as any).__spoken.map((s: any) => s.lang)),
+  ]);
+  expect(languages).toEqual(["en-US"]);
 });
 
 test("本机通知服务可用时测试提醒走 osascript 通道", async ({ page }) => {
@@ -106,10 +152,15 @@ test("本机通知服务可用时测试提醒走 osascript 通道", async ({ pag
 
   await expect.poll(() => notifyCalls.length).toBe(1);
   expect(notifyCalls[0]).toEqual({
-    title: "Pacebox 测试提醒",
-    body: "铃声与系统提示工作正常",
+    title: "Pacebox test notification",
+    body: "Voice prompt and system notifications are working",
   });
   await expect(page.getByText(/已弹出测试通知/)).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => (window as any).__spoken.map((s: any) => s.text)),
+    )
+    .toEqual(["Voice prompt is working"]);
 
   // 服务端已接管，不应再弹浏览器通知
   const browserNotifications = await page.evaluate(
@@ -145,19 +196,56 @@ test("一分钟计时器：00:30 / 00:45 / 01:00 三次提醒并自动结束", a
     );
 
   await page.clock.fastForward(30_000);
-  await expect.poll(titles).toEqual(["第一次提醒"]);
+  await expect.poll(titles).toEqual(["First reminder"]);
 
   await page.clock.fastForward(15_000);
-  await expect.poll(titles).toEqual(["第一次提醒", "第二次提醒"]);
+  await expect.poll(titles).toEqual(["First reminder", "Second reminder"]);
 
   await page.clock.fastForward(15_000);
-  await expect.poll(titles).toEqual(["第一次提醒", "第二次提醒", "时间到"]);
+  await expect.poll(titles).toEqual(["First reminder", "Second reminder", "Time's up"]);
 
   await expect(page.getByText("时间到", { exact: true })).toBeVisible();
   await expect(page.getByText("00:00", { exact: true })).toBeVisible();
 
-  const plays = await page.evaluate(() => (window as any).__plays);
-  expect(plays).toBeGreaterThanOrEqual(3);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => (window as any).__spoken.map((s: any) => s.text)),
+    )
+    .toEqual(["First reminder", "Second reminder", "Time's up"]);
+});
+
+test.describe("中文环境", () => {
+  test.use({ locale: "zh-CN" });
+
+  test("提醒语音使用中文", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "pacebox.settings.v1",
+        JSON.stringify({ totalMinutes: 1, firstReminderPct: 2, secondReminderPct: 5 }),
+      );
+    });
+    await page.goto("/");
+    await page.getByLabel("开始").click();
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() => (window as any).__spoken.map((s: any) => s.text)),
+      )
+      .toEqual(["第一次提醒", "第二次提醒"]);
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          (window as any).__notifications.map((n: any) => n.title),
+        ),
+      )
+      .toEqual(["第一次提醒", "第二次提醒"]);
+
+    const languages = await page.evaluate(() => [
+      ...new Set((window as any).__spoken.map((s: any) => s.lang)),
+    ]);
+    expect(languages).toEqual(["zh-CN"]);
+  });
 });
 
 test("设置页可修改总时长并持久化", async ({ page }) => {

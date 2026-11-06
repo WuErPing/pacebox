@@ -4,7 +4,6 @@ import { Platform } from "react-native";
 
 import { useRecorder } from "@/hooks/use-recorder";
 import { useTranscription } from "@/hooks/use-transcription";
-import { primeBell } from "@/lib/bell";
 import { ensurePermission } from "@/lib/notifier";
 import { finalizeRehearsal } from "@/lib/rehearsal-finalize";
 import type { RecordingSource } from "@/lib/recording-storage";
@@ -136,7 +135,6 @@ export function useRehearsalEngine({
     }
     startingRef.current = true;
     try {
-      primeBell();
       void ensurePermission();
       resetPersistedAudio();
       fallbackRecorderRef.current = false;

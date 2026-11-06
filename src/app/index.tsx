@@ -16,7 +16,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PresetChips } from "@/components/preset-chips";
 import { useTimerEngine } from "@/hooks/use-timer-engine";
-import { primeBell } from "@/lib/bell";
 import { ensurePermission } from "@/lib/notifier";
 import {
   formatClock,
@@ -49,8 +48,7 @@ export default function TimerScreen() {
   const progress = totalMs > 0 ? Math.min(1, elapsedMs / totalMs) : 0;
 
   const handlePrimary = () => {
-    // 用户手势内初始化铃声与通知权限（Web 自动播放/通知策略要求）
-    primeBell();
+    // 用户手势内请求通知权限（Web 策略要求）
     void ensurePermission();
     const store = useTimerStore.getState();
     if (store.status === "running") {

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 
 import { testAiConnection } from "@/lib/ai-scoring";
-import { primeBell, ringBell } from "@/lib/bell";
+import { promptFor, testNotification } from "@/lib/messages";
 import { ensurePermission, notifyNow } from "@/lib/notifier";
 import {
   DEFAULT_SETTINGS,
@@ -20,6 +20,7 @@ import {
   sanitizeSettings,
   type ReminderId,
 } from "@/lib/timer-core";
+import { speak } from "@/lib/voice";
 import { useAiConfigStore } from "@/store/ai-config";
 import { useSettingsStore } from "@/store/settings";
 
@@ -151,9 +152,8 @@ export default function SettingsScreen() {
   } | null>(null);
 
   const handleTest = async () => {
-    primeBell();
     const granted = await ensurePermission();
-    void ringBell();
+    speak(promptFor("test"));
     if (!granted) {
       setNotifyTest({
         ok: false,
@@ -162,7 +162,8 @@ export default function SettingsScreen() {
       });
       return;
     }
-    const shown = await notifyNow("Pacebox 测试提醒", "铃声与系统提示工作正常");
+    const { title, body } = testNotification();
+    const shown = await notifyNow(title, body);
     setNotifyTest(
       shown
         ? {
@@ -224,7 +225,7 @@ export default function SettingsScreen() {
         style={({ pressed }) => [styles.testButton, pressed && styles.buttonPressed]}
       >
         <BellRing color="#38BDF8" size={18} />
-        <Text style={styles.testButtonText}>测试铃声与系统提示</Text>
+        <Text style={styles.testButtonText}>测试语音与系统提示</Text>
       </Pressable>
 
       {notifyTest ? (
