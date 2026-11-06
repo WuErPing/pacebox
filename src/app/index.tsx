@@ -117,8 +117,13 @@ export default function TimerScreen() {
                   : `总时长 ${settings.totalMinutes} 分钟，按「开始」立即开始`}
           </Text>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          <View style={styles.progressWrap}>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            </View>
+            <Text style={styles.progressPct}>
+              已使用 {Math.round(progress * 100)}%
+            </Text>
           </View>
 
           <View style={styles.marks}>
@@ -235,6 +240,10 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 15,
   },
+  progressWrap: {
+    alignSelf: "stretch",
+    gap: 6,
+  },
   progressTrack: {
     width: "100%",
     height: 6,
@@ -246,6 +255,12 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 3,
     backgroundColor: "#38BDF8",
+  },
+  progressPct: {
+    color: "#64748B",
+    fontSize: 12,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
   },
   marks: {
     gap: 10,

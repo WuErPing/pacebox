@@ -145,13 +145,37 @@ export default function SettingsScreen() {
   // 用 sanitize 后的设置预览提醒时刻
   const preview = reminderPoints(sanitizeSettings(settings));
 
+  const [notifyTest, setNotifyTest] = useState<{
+    message: string;
+    ok: boolean;
+  } | null>(null);
+
   const handleTest = async () => {
     primeBell();
     const granted = await ensurePermission();
     void ringBell();
-    if (granted) {
-      void notifyNow("Pacebox 测试提醒", "铃声与系统提示工作正常");
+    if (!granted) {
+      setNotifyTest({
+        ok: false,
+        message:
+          "系统通知权限未授予。请在浏览器地址栏的站点设置中把「通知」改为允许；macOS 还需在 系统设置 → 通知 中允许该浏览器显示横幅，并关闭勿扰/专注模式后重试。",
+      });
+      return;
     }
+    const shown = await notifyNow("Pacebox 测试提醒", "铃声与系统提示工作正常");
+    setNotifyTest(
+      shown
+        ? {
+            ok: true,
+            message:
+              "已弹出测试通知。本机通知服务在线时经 osascript 弹出（检查 系统设置 → 通知 → 脚本编辑器）；未启动时回退浏览器通知（检查该浏览器的提醒样式）。若仍看不到，请关闭勿扰/专注模式。",
+          }
+        : {
+            ok: false,
+            message:
+              "通知发送失败：本机通知服务未启动（npm run notify:server），且浏览器通知被拒绝或该环境不支持。",
+          },
+    );
   };
 
   const handleTestAi = async () => {
@@ -202,6 +226,17 @@ export default function SettingsScreen() {
         <BellRing color="#38BDF8" size={18} />
         <Text style={styles.testButtonText}>测试铃声与系统提示</Text>
       </Pressable>
+
+      {notifyTest ? (
+        <Text
+          style={[
+            styles.notifyHint,
+            { color: notifyTest.ok ? "#34D399" : "#F59E0B" },
+          ]}
+        >
+          {notifyTest.message}
+        </Text>
+      ) : null}
 
       <Pressable
         accessibilityLabel="恢复默认"
@@ -338,6 +373,10 @@ const styles = StyleSheet.create({
     color: "#38BDF8",
     fontSize: 15,
     fontWeight: "600",
+  },
+  notifyHint: {
+    fontSize: 13,
+    lineHeight: 19,
   },
   resetButton: {
     alignItems: "center",

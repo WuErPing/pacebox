@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page, context }) => {
   await context.grantPermissions(["notifications"]);
+  // 默认隔离本机通知服务，保证断言走浏览器回退路径；服务端优先链路由单独用例覆盖
+  await page.route("http://127.0.0.1:39527/**", (route) => route.abort());
   await page.addInitScript(() => {
     // 记录通知与铃声调用，供断言
     (window as any).__notifications = [];
@@ -62,6 +64,100 @@ test("到点触发响铃与系统通知", async ({ page }) => {
 
   const plays = await page.evaluate(() => (window as any).__plays);
   expect(plays).toBeGreaterThanOrEqual(2);
+});
+
+test("本机通知服务可用时测试提醒走 osascript 通道", async ({ page }) => {
+  const notifyCalls: { title: string; body: string }[] = [];
+  await page.route("http://127.0.0.1:39527/health", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      },
+      body: JSON.stringify({ ok: true, platform: "darwin" }),
+    });
+  });
+  await page.route("http://127.0.0.1:39527/notify", async (route) => {
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "POST, OPTIONS",
+          "access-control-allow-headers": "content-type",
+        },
+      });
+      return;
+    }
+    notifyCalls.push(route.request().postDataJSON());
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      },
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+
+  await page.goto("/settings");
+  await page.getByLabel("测试提醒").click();
+
+  await expect.poll(() => notifyCalls.length).toBe(1);
+  expect(notifyCalls[0]).toEqual({
+    title: "Pacebox 测试提醒",
+    body: "铃声与系统提示工作正常",
+  });
+  await expect(page.getByText(/已弹出测试通知/)).toBeVisible();
+
+  // 服务端已接管，不应再弹浏览器通知
+  const browserNotifications = await page.evaluate(
+    () => (window as any).__notifications.length,
+  );
+  expect(browserNotifications).toBe(0);
+});
+
+test("一分钟计时器：00:30 / 00:45 / 01:00 三次提醒并自动结束", async ({
+  page,
+}) => {
+  // 1 分钟 + 缺省 50% / 75%：第一次 00:30，第二次 00:45，结束 01:00
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "pacebox.settings.v1",
+      JSON.stringify({ totalMinutes: 1, firstReminderPct: 50, secondReminderPct: 75 }),
+    );
+  });
+  await page.goto("/");
+
+  await expect(page.getByText("01:00", { exact: true })).toBeVisible();
+  await expect(page.getByText(/第一次提醒 00:30/)).toBeVisible();
+  await expect(page.getByText(/第二次提醒 00:45/)).toBeVisible();
+
+  // 首屏渲染完成后接管时钟，推进 60 秒验证完整提醒链路
+  await page.clock.install();
+  await page.getByLabel("开始").click();
+  await expect(page.getByText("计时中")).toBeVisible();
+
+  const titles = () =>
+    page.evaluate(() =>
+      (window as any).__notifications.map((n: any) => n.title),
+    );
+
+  await page.clock.fastForward(30_000);
+  await expect.poll(titles).toEqual(["第一次提醒"]);
+
+  await page.clock.fastForward(15_000);
+  await expect.poll(titles).toEqual(["第一次提醒", "第二次提醒"]);
+
+  await page.clock.fastForward(15_000);
+  await expect.poll(titles).toEqual(["第一次提醒", "第二次提醒", "时间到"]);
+
+  await expect(page.getByText("时间到", { exact: true })).toBeVisible();
+  await expect(page.getByText("00:00", { exact: true })).toBeVisible();
+
+  const plays = await page.evaluate(() => (window as any).__plays);
+  expect(plays).toBeGreaterThanOrEqual(3);
 });
 
 test("设置页可修改总时长并持久化", async ({ page }) => {

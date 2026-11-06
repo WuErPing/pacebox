@@ -24,6 +24,28 @@ npm start          # Metro，可选任意平台
 macOS 上首次使用请在页面内点击「开始」（浏览器要求用户手势后才允许声音/通知），
 并在浏览器提示时允许通知；也可用「设置 → 测试铃声与系统提示」验证。
 
+### macOS 系统通知（服务端 osascript）
+
+Web 端会优先调用本机通知服务，由服务端执行 `osascript` 弹出系统通知；服务未启动或调用失败时
+回退到浏览器通知。另开一个终端常驻：
+
+```bash
+npm run notify:server   # http://127.0.0.1:39527，仅本机可访问
+```
+
+首次使用可能需要在「系统设置 → 通知」中允许「脚本编辑器」显示通知。Android 端后续单独处理。
+
+## 一键启停
+
+```bash
+make start    # 同时启动 notify（39527）与 Expo Web（8081）
+make status
+make stop     # 同时停止（含 Metro 子进程）
+```
+
+也可单独操作：`make start-notify` / `make stop-notify` / `make start-web` / `make stop-web`。
+PID 与日志存放在 `.run/`（`notify.log` / `web.log`）。
+
 ## 检查
 
 ```bash
@@ -47,4 +69,5 @@ src/
     bell.ts       铃声（expo-audio，assets/sounds/bell.wav）
   store/          settings(持久化) / timer(状态机)
 scripts/generate-bell.mjs  生成铃声资源
+scripts/notify-server.mjs  本机 macOS 通知服务（osascript）
 ```

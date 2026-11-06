@@ -20,11 +20,19 @@ export async function ensurePermission(): Promise<boolean> {
 }
 
 /** 立即弹出一条系统通知（带默认提示音） */
-export async function notifyNow(title: string, body: string): Promise<void> {
-  await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: "default" },
-    trigger: null,
-  });
+export async function notifyNow(
+  title: string,
+  body: string,
+): Promise<boolean> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, sound: "default" },
+      trigger: null,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
