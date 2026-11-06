@@ -217,26 +217,26 @@ export default function SettingsScreen() {
           <Text style={styles.aiTitle}>AI 评分</Text>
         </View>
         <Text style={styles.aiNote}>
-          填写任意 OpenAI 兼容接口（/chat/completions）。API Key
-          仅保存在本机，不会上传到其他服务。
+          缺省指向本地 LM Studio（Developer → Start Server，http://localhost:1234/v1），也可改填任意
+          OpenAI 兼容接口（/chat/completions）。API Key 仅保存在本机，不会上传到其他服务。
         </Text>
         <AiTextField
           label="接口地址"
           value={aiConfig.baseUrl}
-          placeholder="https://api.openai.com/v1"
+          placeholder="http://localhost:1234/v1"
           onCommit={(text) => aiUpdate({ baseUrl: text })}
         />
         <AiTextField
           label="API Key"
           value={aiConfig.apiKey}
-          placeholder="sk-…"
+          placeholder="本地 LM Studio 可填任意值"
           secure
           onCommit={(text) => aiUpdate({ apiKey: text })}
         />
         <AiTextField
           label="模型"
           value={aiConfig.model}
-          placeholder="gpt-4o-mini"
+          placeholder="qwen3.6-35b-a3b-splash"
           onCommit={(text) => aiUpdate({ model: text })}
         />
         <Pressable

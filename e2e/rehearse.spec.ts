@@ -146,13 +146,13 @@ test("首页预设 chip 点击生效并持久化", async ({ page }) => {
   await setupPage(page);
   await page.goto("/");
 
-  await page.getByLabel("主题演讲 20 分钟").click();
-  await expect(page.getByText("20:00", { exact: true })).toBeVisible();
+  await page.getByLabel("主题演讲 30 分钟").click();
+  await expect(page.getByText("30:00", { exact: true })).toBeVisible();
 
   const stored = await page.evaluate(() =>
     localStorage.getItem("pacebox.settings.v1"),
   );
-  expect(stored).toContain('"totalMinutes":20');
+  expect(stored).toContain('"totalMinutes":30');
 });
 
 test("演练全流程：实时转写 → 结束 → 报告页指标与 AI 评分", async ({

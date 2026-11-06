@@ -10,9 +10,10 @@ export interface AiConfig {
 }
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
-  baseUrl: "https://api.openai.com/v1",
+  // 缺省指向本地 LM Studio 的 OpenAI 兼容服务（Developer → Start Server）
+  baseUrl: "http://localhost:1234/v1",
   apiKey: "",
-  model: "gpt-4o-mini",
+  model: "qwen3.6-35b-a3b-splash",
 };
 
 const STORAGE_KEY = "pacebox.ai.v1";
