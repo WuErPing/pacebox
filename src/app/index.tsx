@@ -3,6 +3,8 @@ import {
   Bell,
   BellRing,
   Flag,
+  History,
+  Mic,
   Pause,
   Play,
   RotateCcw,
@@ -12,6 +14,7 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { PresetChips } from "@/components/preset-chips";
 import { useTimerEngine } from "@/hooks/use-timer-engine";
 import { primeBell } from "@/lib/bell";
 import { ensurePermission } from "@/lib/notifier";
@@ -71,15 +74,36 @@ export default function TimerScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.inner}>
         <View style={styles.header}>
-          <Text style={styles.title}>Pacebox</Text>
-          <Pressable
-            accessibilityLabel="设置"
-            onPress={() => router.push("/settings")}
-            style={styles.iconButton}
-          >
-            <SettingsIcon color="#94A3B8" size={22} />
-          </Pressable>
+          <View>
+            <Text style={styles.title}>Pacebox</Text>
+            <Text style={styles.tagline}>演讲与会议配速</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityLabel="演练历史"
+              onPress={() => router.push("/history")}
+              style={styles.iconButton}
+            >
+              <History color="#94A3B8" size={22} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="设置"
+              onPress={() => router.push("/settings")}
+              style={styles.iconButton}
+            >
+              <SettingsIcon color="#94A3B8" size={22} />
+            </Pressable>
+          </View>
         </View>
+
+        {status === "idle" && (
+          <View style={styles.presets}>
+            <PresetChips
+              settings={settings}
+              onSelect={(next) => useSettingsStore.getState().update(next)}
+            />
+          </View>
+        )}
 
         <View style={styles.clockArea}>
           <Text style={styles.clock}>{formatClock(remainingMs)}</Text>
@@ -126,6 +150,17 @@ export default function TimerScreen() {
             <PrimaryIcon color="#0F172A" size={20} fill="#0F172A" />
             <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
           </Pressable>
+          <Pressable
+            accessibilityLabel="演练模式"
+            onPress={() => router.push("/rehearse")}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed && styles.secondaryButtonPressed,
+            ]}
+          >
+            <Mic color="#F8FAFC" size={18} />
+            <Text style={styles.secondaryButtonText}>演练模式</Text>
+          </Pressable>
           {status !== "idle" && (
             <Pressable
               accessibilityLabel="重置"
@@ -167,6 +202,19 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     fontSize: 20,
     fontWeight: "700",
+  },
+  tagline: {
+    color: "#64748B",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  presets: {
+    paddingTop: 8,
   },
   iconButton: {
     padding: 8,

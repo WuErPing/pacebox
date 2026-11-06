@@ -1,6 +1,7 @@
-import { BellRing } from "lucide-react-native";
+import { BellRing, Sparkles } from "lucide-react-native";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   View,
 } from "react-native";
 
+import { testAiConnection } from "@/lib/ai-scoring";
 import { primeBell, ringBell } from "@/lib/bell";
 import { ensurePermission, notifyNow } from "@/lib/notifier";
 import {
@@ -18,6 +20,7 @@ import {
   sanitizeSettings,
   type ReminderId,
 } from "@/lib/timer-core";
+import { useAiConfigStore } from "@/store/ai-config";
 import { useSettingsStore } from "@/store/settings";
 
 const REMINDER_LABEL: Record<ReminderId, string> = {
@@ -82,10 +85,62 @@ function NumberField({ label, value, suffix, onCommit }: FieldProps) {
   );
 }
 
+interface AiFieldProps {
+  label: string;
+  value: string;
+  placeholder: string;
+  secure?: boolean;
+  onCommit: (text: string) => void;
+}
+
+/** 文本输入：本地编辑，失焦/提交时写回 store（避免逐字符 sanitize 干扰输入） */
+function AiTextField({ label, value, placeholder, secure, onCommit }: AiFieldProps) {
+  const [text, setText] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    if (!focused) setText(value);
+  }
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType={secure ? "default" : "url"}
+        onBlur={() => {
+          setFocused(false);
+          onCommit(text.trim());
+        }}
+        onFocus={() => setFocused(true)}
+        onChangeText={setText}
+        onSubmitEditing={() => onCommit(text.trim())}
+        placeholder={placeholder}
+        placeholderTextColor="#64748B"
+        secureTextEntry={secure}
+        style={styles.aiInput}
+        value={text}
+      />
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
   const resetDefaults = useSettingsStore((s) => s.resetDefaults);
+
+  const aiConfig = useAiConfigStore((s) => s.config);
+  const aiUpdate = useAiConfigStore((s) => s.update);
+  const [aiTest, setAiTest] = useState<{
+    running: boolean;
+    message: string | null;
+    ok: boolean;
+  }>({ running: false, message: null, ok: false });
 
   // 用 sanitize 后的设置预览提醒时刻
   const preview = reminderPoints(sanitizeSettings(settings));
@@ -97,6 +152,16 @@ export default function SettingsScreen() {
     if (granted) {
       void notifyNow("Pacebox 测试提醒", "铃声与系统提示工作正常");
     }
+  };
+
+  const handleTestAi = async () => {
+    setAiTest({ running: true, message: null, ok: false });
+    const result = await testAiConnection(useAiConfigStore.getState().config);
+    setAiTest({
+      running: false,
+      message: result ?? "连接成功，AI 评分已就绪",
+      ok: result === null,
+    });
   };
 
   return (
@@ -145,6 +210,59 @@ export default function SettingsScreen() {
       >
         <Text style={styles.resetButtonText}>恢复默认（25 分钟 / 50% / 75%）</Text>
       </Pressable>
+
+      <View style={styles.aiSection}>
+        <View style={styles.aiHeader}>
+          <Sparkles color="#38BDF8" size={16} />
+          <Text style={styles.aiTitle}>AI 评分</Text>
+        </View>
+        <Text style={styles.aiNote}>
+          填写任意 OpenAI 兼容接口（/chat/completions）。API Key
+          仅保存在本机，不会上传到其他服务。
+        </Text>
+        <AiTextField
+          label="接口地址"
+          value={aiConfig.baseUrl}
+          placeholder="https://api.openai.com/v1"
+          onCommit={(text) => aiUpdate({ baseUrl: text })}
+        />
+        <AiTextField
+          label="API Key"
+          value={aiConfig.apiKey}
+          placeholder="sk-…"
+          secure
+          onCommit={(text) => aiUpdate({ apiKey: text })}
+        />
+        <AiTextField
+          label="模型"
+          value={aiConfig.model}
+          placeholder="gpt-4o-mini"
+          onCommit={(text) => aiUpdate({ model: text })}
+        />
+        <Pressable
+          accessibilityLabel="测试连接"
+          disabled={aiTest.running}
+          onPress={() => void handleTestAi()}
+          style={({ pressed }) => [
+            styles.testButton,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          {aiTest.running ? (
+            <ActivityIndicator color="#38BDF8" size="small" />
+          ) : (
+            <Sparkles color="#38BDF8" size={18} />
+          )}
+          <Text style={styles.testButtonText}>
+            {aiTest.running ? "测试中…" : "测试连接"}
+          </Text>
+        </Pressable>
+        {aiTest.message ? (
+          <Text style={aiTest.ok ? styles.aiOk : styles.aiFail}>
+            {aiTest.message}
+          </Text>
+        ) : null}
+      </View>
     </ScrollView>
   );
 }
@@ -231,5 +349,44 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.75,
+  },
+  aiSection: {
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    padding: 16,
+    gap: 14,
+  },
+  aiHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  aiTitle: {
+    color: "#F8FAFC",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  aiNote: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  aiInput: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: "#F8FAFC",
+    fontSize: 15,
+  },
+  aiOk: {
+    color: "#34D399",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  aiFail: {
+    color: "#F87171",
+    fontSize: 13,
+    lineHeight: 19,
   },
 });

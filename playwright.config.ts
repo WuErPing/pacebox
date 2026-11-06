@@ -7,6 +7,12 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: "http://127.0.0.1:3801",
+    launchOptions: {
+      args: [
+        "--use-fake-device-for-media-stream",
+        "--use-fake-ui-for-media-stream",
+      ],
+    },
   },
   webServer: {
     command: "node scripts/serve-dist.mjs 3801",

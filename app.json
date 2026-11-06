@@ -14,7 +14,23 @@
     "web": {
       "output": "single"
     },
-    "plugins": ["expo-router", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "允许 Pacebox 使用麦克风进行演练转写与录音",
+          "speechRecognitionPermission": "允许 Pacebox 使用语音识别进行演练转写"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "允许 Pacebox 使用麦克风进行演练转写与录音"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }
