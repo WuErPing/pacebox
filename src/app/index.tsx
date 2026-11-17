@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import {
   Bell,
   BellRing,
+  BookOpen,
   Flag,
   History,
   Mic,
@@ -77,6 +78,13 @@ export default function TimerScreen() {
             <Text style={styles.tagline}>演讲与会议配速</Text>
           </View>
           <View style={styles.headerActions}>
+            <Pressable
+              accessibilityLabel="演讲指南"
+              onPress={() => router.push("/guide")}
+              style={styles.iconButton}
+            >
+              <BookOpen color="#94A3B8" size={22} />
+            </Pressable>
             <Pressable
               accessibilityLabel="演练历史"
               onPress={() => router.push("/history")}

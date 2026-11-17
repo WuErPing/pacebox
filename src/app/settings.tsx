@@ -10,6 +10,13 @@ import {
   View,
 } from "react-native";
 
+import { ChipRow } from "@/components/chip-row";
+import {
+  AI_PROVIDER_PRESETS,
+  MIMO_ASR_MODEL,
+  MODEL_PRESETS,
+  matchesProvider,
+} from "@/lib/ai-presets";
 import { testAiConnection } from "@/lib/ai-scoring";
 import { promptFor, testNotification } from "@/lib/messages";
 import { ensurePermission, notifyNow } from "@/lib/notifier";
@@ -256,6 +263,25 @@ export default function SettingsScreen() {
           缺省指向本地 LM Studio（Developer → Start Server，http://localhost:1234/v1），也可改填任意
           OpenAI 兼容接口（/chat/completions）。API Key 仅保存在本机，不会上传到其他服务。
         </Text>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>服务商预设</Text>
+          <ChipRow
+            options={AI_PROVIDER_PRESETS.map((p) => ({
+              label: p.label,
+              value: p.label,
+            }))}
+            value={
+              AI_PROVIDER_PRESETS.find((p) => matchesProvider(aiConfig, p))
+                ?.label ?? ""
+            }
+            onSelect={(label) => {
+              const preset = AI_PROVIDER_PRESETS.find((p) => p.label === label);
+              if (preset) {
+                aiUpdate({ baseUrl: preset.baseUrl, model: preset.model });
+              }
+            }}
+          />
+        </View>
         <AiTextField
           label="接口地址"
           value={aiConfig.baseUrl}
@@ -269,12 +295,36 @@ export default function SettingsScreen() {
           secure
           onCommit={(text) => aiUpdate({ apiKey: text })}
         />
-        <AiTextField
-          label="模型"
-          value={aiConfig.model}
-          placeholder="qwen3.6-35b-a3b-splash"
-          onCommit={(text) => aiUpdate({ model: text })}
-        />
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>评分模型</Text>
+          <ChipRow
+            options={MODEL_PRESETS.map((m) => ({ label: m, value: m }))}
+            value={aiConfig.model}
+            onSelect={(model) => aiUpdate({ model })}
+          />
+          <AiTextField
+            label="模型（可自定义）"
+            value={aiConfig.model}
+            placeholder="qwen3.6-35b-a3b-splash"
+            onCommit={(text) => aiUpdate({ model: text })}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>云端精校</Text>
+          <ChipRow
+            options={[
+              { label: "关闭", value: "" },
+              { label: MIMO_ASR_MODEL, value: MIMO_ASR_MODEL },
+            ]}
+            value={aiConfig.asrModel}
+            onSelect={(asrModel) => aiUpdate({ asrModel })}
+          />
+          <Text style={styles.aiNote}>
+            开启后演练结束时把录音上传到上方接口做批量转写（自动按 3
+            分钟分片），替换全文用于评分与历史；失败自动回退本地转写。实时字幕不受影响。仅支持
+            WAV 录音（Android 12- 仅录音不支持精校）；含暂停时云端时间戳为近似对齐。
+          </Text>
+        </View>
         <Pressable
           accessibilityLabel="测试连接"
           disabled={aiTest.running}

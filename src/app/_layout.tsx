@@ -24,6 +24,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: "设置" }} />
+        <Stack.Screen name="guide" options={{ title: "演讲指南" }} />
         <Stack.Screen name="rehearse" options={{ title: "演练" }} />
         <Stack.Screen name="history/index" options={{ title: "演练历史" }} />
         <Stack.Screen name="history/[id]" options={{ title: "演练报告" }} />

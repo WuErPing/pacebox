@@ -7,11 +7,15 @@ import type { TimerSettings } from "@/lib/timer-core";
 const mocks = vi.hoisted(() => ({
   addSession: vi.fn(),
   persistRecording: vi.fn(),
-  aiConfig: { baseUrl: "", apiKey: "", model: "" },
+  refineTranscription: vi.fn(),
+  aiConfig: { baseUrl: "", apiKey: "", model: "", asrModel: "" },
 }));
 
 vi.mock("@/lib/recording-storage", () => ({
   persistRecording: mocks.persistRecording,
+}));
+vi.mock("@/lib/cloud-refine", () => ({
+  refineTranscription: mocks.refineTranscription,
 }));
 vi.mock("@/store/history", () => ({
   useHistoryStore: { getState: () => ({ addSession: mocks.addSession }) },
@@ -35,9 +39,15 @@ beforeEach(() => {
   mocks.addSession.mockReset();
   mocks.addSession.mockResolvedValue(undefined);
   mocks.persistRecording.mockReset();
+  mocks.refineTranscription.mockReset();
+  mocks.refineTranscription.mockResolvedValue({
+    status: "skipped",
+    reason: "未开启云端精校",
+  });
   mocks.aiConfig.baseUrl = "";
   mocks.aiConfig.apiKey = "";
   mocks.aiConfig.model = "";
+  mocks.aiConfig.asrModel = "";
 });
 
 describe("buildSession", () => {
@@ -127,5 +137,92 @@ describe("finalizeRehearsal", () => {
     expect(mocks.persistRecording).toHaveBeenCalledWith(session.id, null);
     expect(session.audioRef).toBeNull();
     expect(session.aiStatus).toBe("unconfigured");
+  });
+});
+
+describe("finalizeRehearsal 云端精校", () => {
+  const BASE = {
+    startedAt: 1_000,
+    settings: SETTINGS,
+    completedNaturally: true,
+    totalElapsedMs: 1_200_000,
+    transcriptionSupported: true,
+    segments: SEGMENTS,
+    recording: { uri: "file:///cache/rec.wav" },
+  };
+
+  const CLOUD_SEGMENTS: TranscriptSegment[] = [
+    { text: "云".repeat(300), startMs: 0, endMs: 60_000, isFinal: true },
+  ];
+
+  beforeEach(() => {
+    mocks.persistRecording.mockResolvedValue({
+      ref: "file:///rehearsals/rec.wav",
+      mime: "audio/wav",
+    });
+  });
+
+  it("refined：云端 segments 替换本地并重算指标", async () => {
+    mocks.refineTranscription.mockResolvedValue({
+      status: "refined",
+      segments: CLOUD_SEGMENTS,
+    });
+    const session = await finalizeRehearsal(BASE);
+    expect(session.segments).toEqual(CLOUD_SEGMENTS);
+    expect(session.transcriptSource).toBe("mimo");
+    expect(session.refineError).toBeNull();
+    expect(session.metrics!.charsPerMin).toBe(300);
+  });
+
+  it("failed：保留本地 segments 并记录 refineError", async () => {
+    mocks.refineTranscription.mockResolvedValue({
+      status: "failed",
+      error: "HTTP 500：服务异常",
+    });
+    const session = await finalizeRehearsal(BASE);
+    expect(session.segments).toEqual(SEGMENTS);
+    expect(session.transcriptSource).toBe("local");
+    expect(session.refineError).toBe("HTTP 500：服务异常");
+    expect(mocks.addSession).toHaveBeenCalledWith(session);
+  });
+
+  it("skipped：本地转写，无错误", async () => {
+    const session = await finalizeRehearsal(BASE);
+    expect(session.segments).toEqual(SEGMENTS);
+    expect(session.transcriptSource).toBe("local");
+    expect(session.refineError).toBeNull();
+  });
+
+  it("精校抛异常不阻断入库", async () => {
+    mocks.refineTranscription.mockRejectedValue(new Error("boom"));
+    const session = await finalizeRehearsal(BASE);
+    expect(session.segments).toEqual(SEGMENTS);
+    expect(session.refineError).toBe("云端精校失败，请重试");
+    expect(mocks.addSession).toHaveBeenCalledWith(session);
+  });
+
+  it("skipRefine 时完全不调用精校", async () => {
+    const session = await finalizeRehearsal({ ...BASE, skipRefine: true });
+    expect(mocks.refineTranscription).not.toHaveBeenCalled();
+    expect(session.transcriptSource).toBe("local");
+  });
+
+  it("lang/pauseRanges/onProgress 透传给精校", async () => {
+    const onRefineProgress = vi.fn();
+    const pauseRanges = [{ startWallMs: 5_000, endWallMs: 8_000 }];
+    await finalizeRehearsal({
+      ...BASE,
+      lang: "en-US",
+      pauseRanges,
+      onRefineProgress,
+    });
+    expect(mocks.refineTranscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lang: "en-US",
+        pauseRanges,
+        onProgress: onRefineProgress,
+        totalElapsedMs: 1_200_000,
+      }),
+    );
   });
 });

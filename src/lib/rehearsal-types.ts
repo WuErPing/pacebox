@@ -88,6 +88,10 @@ export interface RehearsalSession {
   /** Android 12- 等降级场景为 false（无转写） */
   transcriptionSupported: boolean;
   segments: TranscriptSegment[];
+  /** 转写来源；旧数据无此字段按 local 解读 */
+  transcriptSource?: "local" | "mimo";
+  /** 云端精校失败提示（已回退本地转写）；null/undefined = 无 */
+  refineError?: string | null;
   metrics: SpeechMetrics | null;
   aiStatus: AiStatus;
   aiScore: AiScore | null;

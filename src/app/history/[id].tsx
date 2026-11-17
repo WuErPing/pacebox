@@ -112,8 +112,19 @@ export default function SessionReportScreen() {
           {!session.transcriptionSupported ? (
             <Badge text="未转写" color="#94A3B8" />
           ) : null}
+          {session.transcriptSource === "mimo" ? (
+            <Badge text="云端精校" color="#38BDF8" />
+          ) : null}
         </View>
       </View>
+
+      {session.refineError ? (
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>
+            云端精校失败，已使用本地转写：{session.refineError}
+          </Text>
+        </View>
+      ) : null}
 
       {session.metrics ? (
         <>

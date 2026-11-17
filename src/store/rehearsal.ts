@@ -23,6 +23,8 @@ interface RehearsalState {
   startedAt: number;
   /** 最近一次完成的 session id，用于跳转报告页 */
   lastSessionId: string | null;
+  /** finalizing 期间的进度文案（如云端精校 n/N），null 显示缺省 */
+  finalizeNote: string | null;
 
   prepare: (opts: { transcription: boolean }) => void;
   begin: (now?: number) => void;
@@ -32,6 +34,7 @@ interface RehearsalState {
   pushFinal: (text: string, elapsedMs: number) => void;
   setListening: (listening: boolean) => void;
   setRecognitionError: (error: string | null) => void;
+  setFinalizeNote: (note: string | null) => void;
   /** 同步进入 finalizing，防「自然到点 + 手动结束」双触发 */
   beginFinalize: () => void;
   finish: (sessionId: string) => void;
@@ -47,6 +50,7 @@ const INITIAL = {
   recognitionError: null,
   startedAt: 0,
   lastSessionId: null,
+  finalizeNote: null,
 };
 
 export const useRehearsalStore = create<RehearsalState>((set, get) => ({
@@ -110,10 +114,19 @@ export const useRehearsalStore = create<RehearsalState>((set, get) => ({
     set({ recognitionError });
   },
 
+  setFinalizeNote: (finalizeNote) => {
+    set({ finalizeNote });
+  },
+
   beginFinalize: () => {
     const { phase } = get();
     if (phase !== "active" && phase !== "paused") return;
-    set({ phase: "finalizing", interimText: "", interimStartMs: null });
+    set({
+      phase: "finalizing",
+      interimText: "",
+      interimStartMs: null,
+      finalizeNote: null,
+    });
   },
 
   finish: (sessionId) => {

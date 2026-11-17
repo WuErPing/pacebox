@@ -77,7 +77,16 @@ export function useTranscription({
         interimResults: true,
         continuous: true,
         addsPunctuation: true,
-        ...(persist ? { recordingOptions: { persist: true } } : {}),
+        ...(persist
+          ? {
+              recordingOptions: {
+                persist: true,
+                // iOS 生效（Android 本就是 16k Int16 WAV）：云端精校直接可用
+                outputEncoding: "pcmFormatInt16",
+                outputSampleRate: 16000,
+              },
+            }
+          : {}),
       });
       store.setListening(true);
       store.setRecognitionError(null);

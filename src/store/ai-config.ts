@@ -7,6 +7,8 @@ export interface AiConfig {
   /** 仅存设备本地 */
   apiKey: string;
   model: string;
+  /** 云端精校 ASR 模型；空串 = 关闭（复用 baseUrl/apiKey） */
+  asrModel: string;
 }
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
@@ -14,17 +16,20 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   baseUrl: "http://localhost:1234/v1",
   apiKey: "",
   model: "qwen3.6-35b-a3b-splash",
+  asrModel: "",
 };
 
 const STORAGE_KEY = "pacebox.ai.v1";
 
-function sanitizeAiConfig(input: Partial<AiConfig>): AiConfig {
+export function sanitizeAiConfig(input: Partial<AiConfig>): AiConfig {
   const str = (value: unknown, fallback: string) =>
     typeof value === "string" && value.trim() !== "" ? value.trim() : fallback;
   return {
     baseUrl: str(input.baseUrl, DEFAULT_AI_CONFIG.baseUrl).replace(/\/+$/, ""),
     apiKey: typeof input.apiKey === "string" ? input.apiKey.trim() : "",
     model: str(input.model, DEFAULT_AI_CONFIG.model),
+    // 空串合法（= 关闭精校），旧数据无此字段时同样得到 ""
+    asrModel: typeof input.asrModel === "string" ? input.asrModel.trim() : "",
   };
 }
 

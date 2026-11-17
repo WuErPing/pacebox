@@ -51,6 +51,7 @@ export default function RehearseScreen() {
   const interimText = useRehearsalStore((s) => s.interimText);
   const transcriptionSupported = useRehearsalStore((s) => s.transcriptionSupported);
   const lastSessionId = useRehearsalStore((s) => s.lastSessionId);
+  const finalizeNote = useRehearsalStore((s) => s.finalizeNote);
 
   const totalMs = totalDurationMs(settings);
   const remainingMs = Math.max(0, totalMs - elapsedMs);
@@ -228,7 +229,9 @@ export default function RehearseScreen() {
         {phase === "finalizing" ? (
           <View style={styles.overlay}>
             <ActivityIndicator color="#38BDF8" size="large" />
-            <Text style={styles.overlayText}>生成报告中…</Text>
+            <Text style={styles.overlayText}>
+              {finalizeNote ?? "生成报告中…"}
+            </Text>
           </View>
         ) : null}
       </View>

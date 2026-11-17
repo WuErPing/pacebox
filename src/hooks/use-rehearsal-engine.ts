@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 
 import { useRecorder } from "@/hooks/use-recorder";
 import { useTranscription } from "@/hooks/use-transcription";
+import type { PauseRange } from "@/lib/cloud-refine";
 import { ensurePermission } from "@/lib/notifier";
 import { finalizeRehearsal } from "@/lib/rehearsal-finalize";
 import type { RecordingSource } from "@/lib/recording-storage";
@@ -87,6 +88,20 @@ export function useRehearsalEngine({
   const settingsRef = useRef<TimerSettings | null>(null);
   /** persist 模式转写降级后补启的兜底录音是否已开 */
   const fallbackRecorderRef = useRef(false);
+  /** 演练开始墙钟时刻；暂停区间以相对偏移记录（录音墙钟连续，映射 elapsedMs 用） */
+  const startWallRef = useRef(0);
+  const pauseRangesRef = useRef<PauseRange[]>([]);
+  const pendingPauseRef = useRef<number | null>(null);
+
+  const closePendingPause = useCallback(() => {
+    if (pendingPauseRef.current != null) {
+      pauseRangesRef.current.push({
+        startWallMs: pendingPauseRef.current,
+        endWallMs: Date.now() - startWallRef.current,
+      });
+      pendingPauseRef.current = null;
+    }
+  }, []);
 
   // 能力探测结果同步到 store（驱动页面降级徽标）
   useEffect(() => {
@@ -164,6 +179,9 @@ export function useRehearsalEngine({
       setMicGranted(granted);
 
       const now = Date.now();
+      startWallRef.current = now;
+      pauseRangesRef.current = [];
+      pendingPauseRef.current = null;
       store.begin(now);
       const timer = useTimerStore.getState();
       timer.reset();
@@ -182,6 +200,7 @@ export function useRehearsalEngine({
   const pause = useCallback(() => {
     const store = useRehearsalStore.getState();
     if (store.phase !== "active") return;
+    pendingPauseRef.current = Date.now() - startWallRef.current;
     store.pause();
     useTimerStore.getState().pause();
   }, []);
@@ -189,9 +208,10 @@ export function useRehearsalEngine({
   const resume = useCallback(() => {
     const store = useRehearsalStore.getState();
     if (store.phase !== "paused") return;
+    closePendingPause();
     store.resume();
     useTimerStore.getState().start();
-  }, []);
+  }, [closePendingPause]);
 
   const finish = useCallback(
     async (completedNaturally = false) => {
@@ -199,6 +219,7 @@ export function useRehearsalEngine({
       if (store.phase !== "active" && store.phase !== "paused") return;
       store.beginFinalize(); // 同步占位，防「自然到点 + 手动结束」双触发
       setMicGranted(false); // active -> false，识别在 effect 中停止
+      closePendingPause();
 
       const timer = useTimerStore.getState();
       if (timer.status === "running") timer.pause();
@@ -226,6 +247,12 @@ export function useRehearsalEngine({
           transcriptionSupported: store.transcriptionSupported,
           segments: store.segments,
           recording,
+          lang,
+          pauseRanges: pauseRangesRef.current,
+          onRefineProgress: (note) =>
+            useRehearsalStore.getState().setFinalizeNote(note),
+          // 卸载收尾跳过精校，避免离开页面后悬挂长网络请求
+          skipRefine: unmountingRef.current,
         });
         // 卸载收尾：存史即可，回到 idle（下次进入页面从零开始）；
         // 正常收尾：置 done 供页面跳转报告页
@@ -240,7 +267,7 @@ export function useRehearsalEngine({
       }
       useTimerStore.getState().reset();
     },
-    [capabilities.recordingPersist, recorder, waitForPersistedAudio],
+    [capabilities.recordingPersist, recorder, waitForPersistedAudio, closePendingPause, lang],
   );
 
   // 计时自然到点 -> 自动收尾（延迟一拍，避免 effect 内同步 setState）

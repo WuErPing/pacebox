@@ -21,6 +21,7 @@ const CFG: AiConfig = {
   baseUrl: "https://ai.example.com/v1",
   apiKey: "sk-test",
   model: "test-model",
+  asrModel: "",
 };
 
 const INPUT: ScoringInput = {

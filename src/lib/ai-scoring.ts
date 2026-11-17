@@ -240,7 +240,7 @@ export function parseScoreResponse(
   };
 }
 
-function httpErrorMessage(status: number, body: string): string {
+export function httpErrorMessage(status: number, body: string): string {
   const detail = body.trim().slice(0, 120);
   if (status === 401 || status === 403) {
     return `AI 服务拒绝请求（${status}）：请检查 API Key 是否正确${detail ? `。${detail}` : ""}`;
@@ -273,7 +273,7 @@ function linkAbort(
   };
 }
 
-async function chatCompletion(
+export async function chatCompletion(
   cfg: AiConfig,
   body: Record<string, unknown>,
   timeoutMs: number,

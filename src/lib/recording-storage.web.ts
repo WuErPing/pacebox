@@ -103,3 +103,13 @@ export async function loadRecordingBlob(ref: string): Promise<Blob | null> {
     return null;
   }
 }
+
+export async function loadRecordingBytes(ref: string): Promise<Uint8Array | null> {
+  const blob = await loadRecordingBlob(ref);
+  if (!blob) return null;
+  try {
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch {
+    return null;
+  }
+}

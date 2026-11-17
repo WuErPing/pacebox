@@ -76,3 +76,13 @@ export async function listRecordingRefs(): Promise<string[]> {
 export async function loadRecordingBlob(_ref: string): Promise<Blob | null> {
   return null;
 }
+
+export async function loadRecordingBytes(ref: string): Promise<Uint8Array | null> {
+  try {
+    const file = new File(ref);
+    if (!file.exists) return null;
+    return new Uint8Array(await file.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
